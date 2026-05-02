@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+
+    <h2>Buscar cursos próximos</h2>
+
+    <input type="text" id="endereco" placeholder="Digite o endereço">
+    <button onclick="buscar()">Buscar</button>
+
+    <ul id="lista"></ul>
+
+    <script>
+        function buscar() {
+            const endereco = document.getElementById("endereco").value;
+
+            console.log(endereco);
+
+            fetch("http://localhost:8080/cursos-proximos?endereco=" + encodeURIComponent(endereco))
+                .then(res => res.json())
+                .then(data => {
+                    const lista = document.getElementById("lista");
+                    lista.innerHTML = "";
+
+                    data.forEach(curso => {
+                        const li = document.createElement("li");
+                        li.innerText = `${curso.nome} - ${curso.distancia.toFixed(2)} km`;
+                        lista.appendChild(li);
+                    });
+                });
+        }
+    </script>
+
+</body>
+
+</html>
