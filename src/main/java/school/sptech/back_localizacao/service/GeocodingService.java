@@ -16,6 +16,9 @@ public class GeocodingService {
     @Value("${mapbox.token}") // aqui eu to puxando o meu token da properties
     private String token;
 
+    private static final Double RELEVANCIA_MINIMA = 0.2;
+    private static final Integer PALAVRAS_EM_COMUM_MINIMAS = 2;
+
     public CoordenadaDTO getCoordenadas(String endereco) {
         try {
 
@@ -24,10 +27,7 @@ public class GeocodingService {
 //                throw new RuntimeException("Informe o número do endereço");
 //            }
 
-            String url = "https://api.mapbox.com/geocoding/v5/mapbox.places/"
-                    + URLEncoder.encode(endereco, StandardCharsets.UTF_8)
-                    + ".json?access_token=" + token
-                    + "&country=br" // tem que estar no brasil
+            String url = "https://api.mapbox.com/geocoding/v5/mapbox.places/" + URLEncoder.encode(endereco, StandardCharsets.UTF_8) + ".json?access_token=" + token + "&country=br" // tem que estar no brasil
                     + "&types=address,poi" // aqui to definindo que é um endereço
                     + "&bbox=-46.825,-24.008,-46.365,-23.356" // to limitando a sp
                     + "&proximity=-46.6333,-23.5505" // centro de SP
@@ -38,7 +38,6 @@ public class GeocodingService {
 
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(resposta);
-
             JsonNode features = root.path("features"); // pega a lista de resultados da api
 
             if (features.isEmpty()) {
@@ -58,25 +57,28 @@ public class GeocodingService {
                 }
             }
 
-            if (maiorRelevancia < 0.8) {
-                throw new RuntimeException("Endereço não confiável (baixa relevância: " + maiorRelevancia + ")");
+            // valida relevancia minima
+            if (maiorRelevancia < RELEVANCIA_MINIMA) {
+                throw new RuntimeException("Endereço não encontrado com precisão suficiente. " +
+                        "Tente ser mais específico (ex: 'Rua Augusta, 1000, São Paulo')");
             }
 
-
+            // valida se o resultado tem palavras em comum com o que foi buscado
             String nomeDoLugar = melhor.path("place_name").asText().toLowerCase();
             String enderecoLower = endereco.toLowerCase();
-
             String[] palavras = enderecoLower.split(" "); // quebro o endereco em palavras
             int palavrasIguais = 0;
 
             for (String palavra : palavras) {
-                if (nomeDoLugar.contains(palavra)) {
+                if (palavra.length() > 2 && nomeDoLugar.contains(palavra)) { // ignora de, da, 1...
                     palavrasIguais++;
                 }
             }
 
-            if (palavrasIguais < 2) { // se nao tiverem pelo menos 2 palavras iguais da erro
-                throw new RuntimeException("Endereço divergente do buscado");
+            if (palavrasIguais < PALAVRAS_EM_COMUM_MINIMAS) {
+                throw new RuntimeException(
+                        "O endereço encontrado não corresponde ao buscado. Verifique o endereço digitado."
+                );
             }
 
             JsonNode center = melhor.path("center");
@@ -92,8 +94,10 @@ public class GeocodingService {
 
             return new CoordenadaDTO(lat, lng);
 
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao converter endereço", e);
+            throw new RuntimeException("Erro ao converter endereço: " + e.getMessage(), e);
         }
     }
 }
