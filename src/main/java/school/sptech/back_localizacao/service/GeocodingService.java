@@ -11,6 +11,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.Arrays;
+import java.util.List;
 
 @Service
 public class GeocodingService {
@@ -100,20 +101,46 @@ public class GeocodingService {
                     .normalize(endereco.toLowerCase(), Normalizer.Form.NFD)
                     .replaceAll("\\p{InCombiningDiacriticalMarks}", "");
 
+            enderecoLower = enderecoLower.replaceAll("[,.]", "");
+
             String[] palavras = enderecoLower.split(" ");
             int palavrasIguais = 0;
 
+//            for (String palavra : palavras) {
+//                if (palavra.length() >= 2 && nomeDoLugar.contains(palavra)) {
+//                    palavrasIguais++;
+//                }
+//            }
+
+            List<String> ignorar = List.of("rua", "av", "avenida", "alameda", "praca", "travessa", "rodovia");
+
+            int palavrasUteis = 0;
             for (String palavra : palavras) {
-                if (palavra.length() >= 2 && nomeDoLugar.contains(palavra)) {
+                if (palavra.length() >= 2
+                        && !ignorar.contains(palavra)
+                        && !palavra.matches("\\d+")) {
+                    palavrasUteis++;
+                }
+            }
+
+            int minimoNecessario = palavrasUteis >= 3 ? 2 : 1;
+
+            for (String palavra : palavras) {
+                if (palavra.length() >= 2
+                        && !ignorar.contains(palavra)
+                        && !palavra.matches("\\d+")
+                        && nomeDoLugar.contains(palavra)) {
                     palavrasIguais++;
                 }
             }
 
+            System.out.println("PALAVRAS UTEIS: " + palavrasUteis);
             System.out.println("PALAVRAS EM COMUM: " + palavrasIguais);
+            System.out.println("MINIMO NECESSARIO: " + minimoNecessario);
             System.out.println("PALAVRAS ANALISADAS: " + Arrays.toString(palavras));
             System.out.println("NOME DO LUGAR: " + nomeDoLugar);
 
-            if (palavrasIguais < PALAVRAS_EM_COMUM_MINIMAS) {
+            if (palavrasIguais < minimoNecessario) {
                 System.out.println(">> REPROVADO: poucas palavras em comum");
                 return null;
             }
