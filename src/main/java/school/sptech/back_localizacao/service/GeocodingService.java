@@ -142,7 +142,9 @@ public class GeocodingService {
 
             if (palavrasIguais < minimoNecessario) {
                 System.out.println(">> REPROVADO: poucas palavras em comum");
-                return null;
+                throw new RuntimeException(
+                        "Endereço muito genérico. Tente incluir o número e a cidade. Ex: 'Rua das Flores, 99, São Paulo'"
+                );
             }
 
             JsonNode center = melhor.path("center");
