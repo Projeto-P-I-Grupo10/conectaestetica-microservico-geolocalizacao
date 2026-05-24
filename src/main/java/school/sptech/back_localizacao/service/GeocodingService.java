@@ -155,6 +155,8 @@ public class GeocodingService {
 
             return new CoordenadaDTO(lat, lng);
 
+        } catch (RuntimeException e) {
+            throw e; // deixa subir sem modificar
         } catch (Exception e) {
             throw new RuntimeException("Erro ao chamar API de geocoding: " + e.getMessage(), e);
         }
