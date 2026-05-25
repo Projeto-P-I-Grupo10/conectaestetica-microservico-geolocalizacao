@@ -9,91 +9,156 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
+import java.util.Arrays;
+import java.util.List;
 
 @Service
 public class GeocodingService {
 
-    @Value("${mapbox.token}") // aqui eu to puxando o meu token da properties
+    @Value("${mapbox.token}")
     private String token;
 
-    public CoordenadaDTO getCoordenadas(String endereco) {
-        try {
+    private static final double RELEVANCIA_MINIMA = 0.5;
+    private static final int PALAVRAS_EM_COMUM_MINIMAS = 2;
 
-            // validacao com regex pra garantir que tenha algum numero
-//            if (!endereco.matches(".*\\d+.*")) {
-//                throw new RuntimeException("Informe o número do endereço");
-//            }
+    public CoordenadaDTO getCoordenadas(String endereco) {
+
+        CoordenadaDTO resultado = tentarGeocodificar(endereco);
+
+        if (resultado == null) {
+            String enderecoSemNumero = endereco.replaceAll("\\s*,?\\s*\\d+\\s*$", "").trim();
+
+            if (!enderecoSemNumero.equals(endereco)) {
+                System.out.println("TENTANDO SEM NÚMERO: " + enderecoSemNumero);
+                resultado = tentarGeocodificar(enderecoSemNumero);
+            }
+        }
+
+        if (resultado == null) {
+            throw new RuntimeException(
+                    "Endereço não encontrado. Tente formatos como: 'Rua Augusta, 1000' ou 'Praça da Sé'"
+            );
+        }
+
+        return resultado;
+    }
+
+    private CoordenadaDTO tentarGeocodificar(String endereco) {
+        try {
+            // normaliza antes de enviar pra API (remove acentos)
+            String enderecoNormalizado = Normalizer
+                    .normalize(endereco, Normalizer.Form.NFD)
+                    .replaceAll("\\p{InCombiningDiacriticalMarks}", "");
 
             String url = "https://api.mapbox.com/geocoding/v5/mapbox.places/"
-                    + URLEncoder.encode(endereco, StandardCharsets.UTF_8)
+                    + URLEncoder.encode(enderecoNormalizado, StandardCharsets.UTF_8)
                     + ".json?access_token=" + token
-                    + "&country=br" // tem que estar no brasil
-                    + "&types=address,poi" // aqui to definindo que é um endereço
-                    + "&bbox=-46.825,-24.008,-46.365,-23.356" // to limitando a sp
-                    + "&proximity=-46.6333,-23.5505" // centro de SP
-                    + "&autocomplete=false"; // aqui eu tiro sugestao pra pegar o endereco exato
+                    + "&country=br"
+                    + "&types=address,poi"
+                    + "&bbox=-46.825,-24.008,-46.365,-23.356"
+                    + "&proximity=-46.6333,-23.5505"
+                    + "&autocomplete=false";
 
             RestTemplate restTemplate = new RestTemplate();
             String resposta = restTemplate.getForObject(url, String.class);
 
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(resposta);
-
-            JsonNode features = root.path("features"); // pega a lista de resultados da api
+            JsonNode features = root.path("features");
 
             if (features.isEmpty()) {
-                throw new RuntimeException("Endereço não encontrado");
+                System.out.println(">> REPROVADO: nenhum resultado retornado pela API");
+                return null;
             }
 
-            // pega o melhor resultado baseado em relevância
             JsonNode melhor = null;
             double maiorRelevancia = -1;
 
             for (JsonNode feature : features) {
                 double relevancia = feature.path("relevance").asDouble();
-
                 if (relevancia > maiorRelevancia) {
                     maiorRelevancia = relevancia;
                     melhor = feature;
                 }
             }
 
-            if (maiorRelevancia < 0.8) {
-                throw new RuntimeException("Endereço não confiável (baixa relevância: " + maiorRelevancia + ")");
+            System.out.println("ENDEREÇO BUSCADO: " + endereco);
+            System.out.println("ESCOLHIDO: " + melhor.path("place_name").asText());
+            System.out.println("RELEVANCIA: " + maiorRelevancia);
+
+            if (maiorRelevancia < RELEVANCIA_MINIMA) {
+                System.out.println(">> REPROVADO: relevância baixa");
+                return null;
             }
 
+            // normaliza os dois lados antes de comparar
+            String nomeDoLugar = Normalizer
+                    .normalize(melhor.path("place_name").asText().toLowerCase(), Normalizer.Form.NFD)
+                    .replaceAll("\\p{InCombiningDiacriticalMarks}", "");
 
-            String nomeDoLugar = melhor.path("place_name").asText().toLowerCase();
-            String enderecoLower = endereco.toLowerCase();
+            String enderecoLower = Normalizer
+                    .normalize(endereco.toLowerCase(), Normalizer.Form.NFD)
+                    .replaceAll("\\p{InCombiningDiacriticalMarks}", "");
 
-            String[] palavras = enderecoLower.split(" "); // quebro o endereco em palavras
+            enderecoLower = enderecoLower.replaceAll("[,.]", "");
+
+            String[] palavras = enderecoLower.split(" ");
             int palavrasIguais = 0;
 
+//            for (String palavra : palavras) {
+//                if (palavra.length() >= 2 && nomeDoLugar.contains(palavra)) {
+//                    palavrasIguais++;
+//                }
+//            }
+
+            List<String> ignorar = List.of("rua", "av", "avenida", "alameda", "praca", "travessa", "rodovia");
+
+            int palavrasUteis = 0;
             for (String palavra : palavras) {
-                if (nomeDoLugar.contains(palavra)) {
+                if (palavra.length() >= 2
+                        && !ignorar.contains(palavra)
+                        && !palavra.matches("\\d+")) {
+                    palavrasUteis++;
+                }
+            }
+
+            int minimoNecessario = palavrasUteis >= 3 ? 2 : 1;
+
+            for (String palavra : palavras) {
+                if (palavra.length() >= 2
+                        && !ignorar.contains(palavra)
+                        && !palavra.matches("\\d+")
+                        && nomeDoLugar.contains(palavra)) {
                     palavrasIguais++;
                 }
             }
 
-            if (palavrasIguais < 2) { // se nao tiverem pelo menos 2 palavras iguais da erro
-                throw new RuntimeException("Endereço divergente do buscado");
+            System.out.println("PALAVRAS UTEIS: " + palavrasUteis);
+            System.out.println("PALAVRAS EM COMUM: " + palavrasIguais);
+            System.out.println("MINIMO NECESSARIO: " + minimoNecessario);
+            System.out.println("PALAVRAS ANALISADAS: " + Arrays.toString(palavras));
+            System.out.println("NOME DO LUGAR: " + nomeDoLugar);
+
+            if (palavrasIguais < minimoNecessario) {
+                System.out.println(">> REPROVADO: poucas palavras em comum");
+                throw new RuntimeException(
+                        "Endereço muito genérico. Tente incluir o número e a cidade. Ex: 'Rua das Flores, 99, São Paulo'"
+                );
             }
 
             JsonNode center = melhor.path("center");
-
             double lng = center.get(0).asDouble();
             double lat = center.get(1).asDouble();
 
-            System.out.println("ENDEREÇO BUSCADO: " + endereco);
-            System.out.println("ESCOLHIDO: " + melhor.path("place_name").asText());
-            System.out.println("RELEVANCIA: " + maiorRelevancia);
-            System.out.println("LAT: " + lat);
-            System.out.println("LNG: " + lng);
+            System.out.println("LAT: " + lat + " | LNG: " + lng);
 
             return new CoordenadaDTO(lat, lng);
 
+        } catch (RuntimeException e) {
+            throw e; // deixa subir sem modificar
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao converter endereço", e);
+            throw new RuntimeException("Erro ao chamar API de geocoding: " + e.getMessage(), e);
         }
     }
 }
