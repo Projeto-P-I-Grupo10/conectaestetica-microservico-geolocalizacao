@@ -7,10 +7,8 @@ public class CursoDTO {
     private Double lng;
     private Double distancia;
 
-    public CursoDTO(String nome, Double lat, Double lng) {
+    public CursoDTO(String nome) {
         this.nome = nome;
-        this.lat = lat;
-        this.lng = lng;
     }
 
     public String getNome() { return nome; }
@@ -18,7 +16,7 @@ public class CursoDTO {
     public Double getLng() { return lng; }
     public Double getDistancia() { return distancia; }
 
-    public void setDistancia(Double distancia) {
-        this.distancia = distancia;
-    }
+    public void setLat(Double lat) { this.lat = lat; }
+    public void setLng(Double lng) { this.lng = lng; }
+    public void setDistancia(Double distancia) { this.distancia = distancia; }
 }

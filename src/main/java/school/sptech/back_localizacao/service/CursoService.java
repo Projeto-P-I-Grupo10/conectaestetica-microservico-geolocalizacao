@@ -9,10 +9,10 @@ import school.sptech.back_localizacao.dto.CursoDTO;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 @Service
 public class CursoService {
@@ -23,44 +23,84 @@ public class CursoService {
     @Value("${mapbox.token}")
     private String token;
 
+    @Value("${plataforma.url:http://localhost:8080}")
+    private String plataformaUrl;
+
     public List<CursoDTO> buscarCursosProximos(String endereco) {
 
         CoordenadaDTO user = geoService.getCoordenadas(endereco);
 
-        // mockei só pra poc
-        List<CursoDTO> cursos = List.of(
-                new CursoDTO("Curso 1 - Praça da Sé", -23.5505, -46.6333),
-                new CursoDTO("Curso 2 - Paulista", -23.5614, -46.6559),
-                new CursoDTO("Curso 3 - Ibirapuera", -23.5874, -46.6576)
-        );
+        // busca turmas reais da plataforma
+        List<CursoDTO> cursos = buscarTurmasDaPlataforma();
+
+        if (cursos.isEmpty()) {
+            throw new RuntimeException("Nenhum curso disponível no momento.");
+        }
 
         return cursos.stream()
-
-                // calcula linha reta
+                .filter(curso -> curso.getLat() != null && curso.getLng() != null)
                 .map(curso -> {
                     Double distancia = calcularDistancia(
-                            user.getLat(),
-                            user.getLng(),
-                            curso.getLat(),
-                            curso.getLng()
+                            user.getLat(), user.getLng(),
+                            curso.getLat(), curso.getLng()
                     );
                     curso.setDistancia(distancia);
                     return curso;
                 })
-                .sorted(Comparator.comparing(CursoDTO::getDistancia)) // ordena por proximidade
-                .limit(5) // pega so os mais proximos
-                .map(curso -> { // chama a api
+                .sorted(Comparator.comparing(CursoDTO::getDistancia))
+                .limit(5)
+                .map(curso -> {
                     Double distanciaReal = calcularDistanciaRota(
-                            user.getLat(),
-                            user.getLng(),
-                            curso.getLat(),
-                            curso.getLng()
+                            user.getLat(), user.getLng(),
+                            curso.getLat(), curso.getLng()
                     );
                     curso.setDistancia(distanciaReal);
                     return curso;
                 })
-                .sorted(Comparator.comparing(CursoDTO::getDistancia)) // reordena com distância real
+                .sorted(Comparator.comparing(CursoDTO::getDistancia))
                 .toList();
+    }
+
+    private List<CursoDTO> buscarTurmasDaPlataforma() {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String url = plataformaUrl + "/turmas/detalhes";
+            String resposta = restTemplate.getForObject(url, String.class);
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode turmas = mapper.readTree(resposta);
+
+            List<CursoDTO> cursos = new ArrayList<>();
+
+            for (JsonNode turma : turmas) {
+                String nomeCurso = turma.path("cursoNome").asText();
+                String rua = turma.path("enderecoRua").asText();
+                String numero = turma.path("enderecoNumero").asText();
+                String cidade = turma.path("enderecoCidade").asText();
+
+                if (rua.isBlank() || cidade.isBlank()) {
+                    System.out.println("TURMA SEM ENDEREÇO: " + nomeCurso);
+                    continue;
+                }
+
+                String enderecoCompleto = rua + ", " + numero + ", " + cidade;
+
+                try {
+                    CoordenadaDTO coordenada = geoService.getCoordenadas(enderecoCompleto);
+                    CursoDTO curso = new CursoDTO(nomeCurso);
+                    curso.setLat(coordenada.getLat());
+                    curso.setLng(coordenada.getLng());
+                    cursos.add(curso);
+                } catch (Exception e) {
+                    System.out.println("ENDEREÇO NÃO GEOCODIFICADO: " + enderecoCompleto);
+                }
+            }
+
+            return cursos;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao buscar turmas da plataforma: " + e.getMessage(), e);
+        }
     }
 
     private Double calcularDistancia(Double lat1, Double lon1, Double lat2, Double lon2) {
@@ -100,7 +140,7 @@ public class CursoService {
 
             double distance = routes.get(0).path("distance").asDouble();
 
-            return distance / 1000; // km
+            return distance / 1000;
 
         } catch (Exception e) {
             e.printStackTrace();
