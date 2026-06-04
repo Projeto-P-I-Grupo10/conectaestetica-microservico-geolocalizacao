@@ -16,7 +16,7 @@
 
         console.log(endereco);
 
-        fetch("http://localhost:8080/cursos-proximos?endereco=" + encodeURIComponent(endereco))
+        fetch("http://localhost:8082/cursos-proximos?endereco=" + encodeURIComponent(endereco))
 .then(res => res.json())
 .then(data => {
     const lista = document.getElementById("lista");
