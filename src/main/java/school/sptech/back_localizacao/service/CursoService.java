@@ -48,7 +48,7 @@ public class CursoService {
                     return curso;
                 })
                 .sorted(Comparator.comparing(CursoDTO::getDistancia))
-                .limit(5)
+                .limit(6)
                 .map(curso -> {
                     Double distanciaReal = calcularDistanciaRota(
                             user.getLat(), user.getLng(),
