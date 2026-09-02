@@ -1,11 +1,11 @@
-package school.sptech.back_localizacao.service;
+package school.sptech.back_localizacao.application.useCases;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import school.sptech.back_localizacao.dto.CoordenadaDTO;
-import school.sptech.back_localizacao.dto.CursoDTO;
+import school.sptech.back_localizacao.application.dto.CoordenadaDTO;
+import school.sptech.back_localizacao.application.dto.CursoDTO;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -15,10 +15,10 @@ import java.util.List;
 import java.util.Locale;
 
 @Service
-public class CursoService {
+public class BuscaCursosProximos {
 
     @Autowired
-    private GeocodingService geoService;
+    private BuscaCoordenadas buscaCoordenadas;
 
     @Value("${mapbox.token}")
     private String token;
@@ -26,9 +26,9 @@ public class CursoService {
     @Value("${plataforma.url:http://localhost:8080}")
     private String plataformaUrl;
 
-    public List<CursoDTO> buscarCursosProximos(String endereco) {
+    public List<CursoDTO> buscar(String endereco) {
 
-        CoordenadaDTO user = geoService.getCoordenadas(endereco);
+        CoordenadaDTO user = buscaCoordenadas.buscar(endereco);
 
         // busca turmas reais da plataforma
         List<CursoDTO> cursos = buscarTurmasDaPlataforma();
@@ -86,7 +86,7 @@ public class CursoService {
                 String enderecoCompleto = rua + ", " + numero + ", " + cidade;
 
                 try {
-                    CoordenadaDTO coordenada = geoService.getCoordenadas(enderecoCompleto);
+                    CoordenadaDTO coordenada = buscaCoordenadas.buscar(enderecoCompleto);
                     CursoDTO curso = new CursoDTO(nomeCurso);
                     curso.setLat(coordenada.getLat());
                     curso.setLng(coordenada.getLng());
@@ -118,7 +118,7 @@ public class CursoService {
         return raioDaTerraEmQuilometros * parteDaFormulaHaversine;
     }
 
-    public Double calcularDistanciaRota(Double lat1, Double lon1, Double lat2, Double lon2) {
+    private Double calcularDistanciaRota(Double lat1, Double lon1, Double lat2, Double lon2) {
         try {
             String url = String.format(
                     Locale.US,

@@ -1,4 +1,4 @@
-package school.sptech.back_localizacao.dto;
+package school.sptech.back_localizacao.application.dto;
 
 public class CoordenadaDTO {
     private Double lat;

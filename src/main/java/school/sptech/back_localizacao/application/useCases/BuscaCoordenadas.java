@@ -1,9 +1,9 @@
-package school.sptech.back_localizacao.service;
+package school.sptech.back_localizacao.application.useCases;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import school.sptech.back_localizacao.dto.CoordenadaDTO;
+import school.sptech.back_localizacao.application.dto.CoordenadaDTO;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -14,7 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Service
-public class GeocodingService {
+public class BuscaCoordenadas {
 
     @Value("${mapbox.token}")
     private String token;
@@ -22,7 +22,7 @@ public class GeocodingService {
     private static final double RELEVANCIA_MINIMA = 0.5;
     private static final int PALAVRAS_EM_COMUM_MINIMAS = 2;
 
-    public CoordenadaDTO getCoordenadas(String endereco) {
+    public CoordenadaDTO buscar(String endereco) {
 
         CoordenadaDTO resultado = tentarGeocodificar(endereco);
 
