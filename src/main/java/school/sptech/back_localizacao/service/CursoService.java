@@ -20,6 +20,7 @@ public class CursoService {
     @Autowired
     private GeocodingService geoService;
 
+
     @Value("${mapbox.token}")
     private String token;
 
