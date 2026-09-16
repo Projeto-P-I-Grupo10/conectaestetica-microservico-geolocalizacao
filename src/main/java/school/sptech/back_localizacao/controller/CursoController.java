@@ -21,9 +21,9 @@ public class CursoController {
     private CursoService service;
 
     @GetMapping("/cursos-proximos")
-    public ResponseEntity<?> buscar(@RequestParam String endereco) {
+    public ResponseEntity<?> buscar(@RequestParam String endereco, @RequestParam(defaultValue = "10") Double distancia) {
         try {
-            return ResponseEntity.ok(service.buscarCursosProximos(endereco));
+            return ResponseEntity.ok(service.buscarCursosProximos(endereco, distancia));
         } catch (RuntimeException e) {
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)

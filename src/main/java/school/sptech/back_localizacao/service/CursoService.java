@@ -27,11 +27,9 @@ public class CursoService {
     @Value("${plataforma.url:http://localhost:8080}")
     private String plataformaUrl;
 
-    public List<CursoDTO> buscarCursosProximos(String endereco) {
+    public List<CursoDTO> buscarCursosProximos(String endereco, Double distanciaMaxima) {
 
         CoordenadaDTO user = geoService.getCoordenadas(endereco);
-
-        // busca turmas reais da plataforma
         List<CursoDTO> cursos = buscarTurmasDaPlataforma();
 
         if (cursos.isEmpty()) {
@@ -48,8 +46,7 @@ public class CursoService {
                     curso.setDistancia(distancia);
                     return curso;
                 })
-                .sorted(Comparator.comparing(CursoDTO::getDistancia))
-                .limit(6)
+                .filter(curso -> curso.getDistancia() <= distanciaMaxima) // filtra por distância
                 .map(curso -> {
                     Double distanciaReal = calcularDistanciaRota(
                             user.getLat(), user.getLng(),
@@ -58,6 +55,7 @@ public class CursoService {
                     curso.setDistancia(distanciaReal);
                     return curso;
                 })
+                .filter(curso -> curso.getDistancia() <= distanciaMaxima) // refiltra com distância real
                 .sorted(Comparator.comparing(CursoDTO::getDistancia))
                 .toList();
     }
