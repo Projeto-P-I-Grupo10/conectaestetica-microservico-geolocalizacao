@@ -24,7 +24,7 @@ public class CursoService {
     @Value("${mapbox.token}")
     private String token;
 
-    @Value("${plataforma.url:http://localhost:8080}")
+    @Value("${plataforma.url:http://localhost:8080/api}")
     private String plataformaUrl;
 
     public List<CursoDTO> buscarCursosProximos(String endereco, Double distanciaMaxima) {
